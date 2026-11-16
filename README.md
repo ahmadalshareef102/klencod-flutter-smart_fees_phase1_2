@@ -2,21 +2,12 @@
 
 الحالة: المرحلتان 1 و2 مكتوبتان. **لم يُشغَّل `flutter analyze` ولا الاختبارات ولا البناء** (Flutter غير متاح في بيئة الكتابة).
 
-## التشغيل في Klencod (مرة واحدة)
+## التشغيل / البناء
 
-1. أنشئ مشروعًا جديدًا فارغًا ليولّد مجلد android:
-   `flutter create --project-name smart_fees --org com.smartfees --platforms android smart_fees_new`
-2. انسخ فوقه من هذا المجلد: `lib/` و`test/` و`assets/` و`pubspec.yaml` و`analysis_options.yaml`، واحذف `test/widget_test.dart` المولَّد.
-3. اضبط اسم الحزمة إلى `com.smartfees.management` في `android/app/build.gradle(.kts)` (`namespace` و`applicationId`) ومجلد/ملف `MainActivity` إن لزم، واضبط `android:label` إلى `Smart Fees` في `AndroidManifest.xml`.
-4. ضع `Cairo-Regular.ttf` و`Cairo-Bold.ttf` في `assets/fonts/` وفعّل كتلة `fonts` في pubspec.
-5. نفّذ بالترتيب:
-   ```
-   flutter pub get
-   flutter analyze
-   flutter test
-   flutter run
-   ```
-6. أرسل لي أي خطأ بنصّه الأصلي لأصلحه.
+- مجلد `android/` جاهز (مأخوذ من إعداد مشروع exam6 الذي يبني على Klencod: AGP 8.11.1، Kotlin 2.2.20، Gradle 8.14.3) والحزمة `com.smartfees.management` والاسم `Smart Fees`.
+- خط Cairo مضمَّن في `assets/fonts/` ومفعَّل في pubspec.
+- ارفع المجلد كاملًا (بما فيه `android/`) ثم ابنِ. التوقيع الحالي debug لتعمل `flutter build apk --release`؛ استبدله بمفتاح خاص قبل النشر.
+- أيقونة التطبيق مؤقتة (منسوخة من مشروع الاختبارات) وتُستبدل لاحقًا.
 
 ## ما تم
 - المرحلة 1: الثيم الفاتح/الداكن/التلقائي (محفوظ في SQLite)، RTL، شريط تنقل بخمسة عناصر، شاشة المزيد.

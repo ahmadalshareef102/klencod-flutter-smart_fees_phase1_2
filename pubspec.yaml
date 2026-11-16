@@ -25,14 +25,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  assets:
-    - assets/images/
-    - assets/icons/
-  # الخط: ضع ملفي Cairo-Regular.ttf و Cairo-Bold.ttf داخل assets/fonts/
-  # (حمّلهما مرة واحدة ثم ضمّنهما في المشروع ليعمل دون إنترنت)، ثم فعّل الكتلة التالية:
-  # fonts:
-  #   - family: Cairo
-  #     fonts:
-  #       - asset: assets/fonts/Cairo-Regular.ttf
-  #       - asset: assets/fonts/Cairo-Bold.ttf
-  #         weight: 700
+  fonts:
+    - family: Cairo
+      fonts:
+        - asset: assets/fonts/Cairo-Regular.ttf
+        - asset: assets/fonts/Cairo-Bold.ttf
+          weight: 700
