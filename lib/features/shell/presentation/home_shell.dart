@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-/// الهيكل الرئيسي: شريط تنقل سفلي بخمسة عناصر.
+/// الهيكل الرئيسي: ثلاثة تبويبات (لوحة القيادة، الدفعات، الإعدادات).
+/// الاتجاه RTL فتظهر لوحة القيادة في أقصى اليمين.
 class HomeShell extends StatelessWidget {
   const HomeShell({super.key, required this.shell});
 
@@ -17,25 +18,17 @@ class HomeShell extends StatelessWidget {
             shell.goBranch(i, initialLocation: i == shell.currentIndex),
         destinations: const [
           NavigationDestination(
-              icon: Icon(Icons.dashboard_outlined),
-              selectedIcon: Icon(Icons.dashboard),
-              label: 'الرئيسية'),
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home_rounded),
+              label: 'لوحة القيادة'),
           NavigationDestination(
-              icon: Icon(Icons.groups_outlined),
-              selectedIcon: Icon(Icons.groups),
-              label: 'الطلاب'),
+              icon: Icon(Icons.school_outlined),
+              selectedIcon: Icon(Icons.school_rounded),
+              label: 'الدفعات'),
           NavigationDestination(
-              icon: Icon(Icons.payments_outlined),
-              selectedIcon: Icon(Icons.payments),
-              label: 'التحصيل'),
-          NavigationDestination(
-              icon: Icon(Icons.fact_check_outlined),
-              selectedIcon: Icon(Icons.fact_check),
-              label: 'الحضور'),
-          NavigationDestination(
-              icon: Icon(Icons.more_horiz),
-              selectedIcon: Icon(Icons.more_horiz),
-              label: 'المزيد'),
+              icon: Icon(Icons.settings_outlined),
+              selectedIcon: Icon(Icons.settings_rounded),
+              label: 'الإعدادات'),
         ],
       ),
     );

@@ -8,6 +8,9 @@ class Money {
 
   static final NumberFormat _fmt = NumberFormat('#,##0', 'en');
 
+  /// أرقام بفواصل آلاف دون رمز العملة.
+  static String group(int amount) => _fmt.format(amount);
+
   static String format(int amount) =>
       '${_fmt.format(amount)} ${AppConstants.currencySymbol}';
 

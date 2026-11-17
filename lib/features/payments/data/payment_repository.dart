@@ -107,128 +107,158 @@ class PaymentRepository {
       throw const AppException('تاريخ الدفع غير صالح');
     }
 
-    return _db.transaction((txn) async {
-      // 1) التحقق من التسجيل والرصيد.
-      final enr = await txn.query(
-        'enrollments',
-        columns: ['final_fee', 'status'],
-        where: 'id = ?',
-        whereArgs: [enrollmentId],
-        limit: 1,
-      );
-      if (enr.isEmpty) throw const AppException('التسجيل غير موجود');
-      if (enr.first['status'] == 'cancelled') {
-        throw const AppException('لا يمكن تسجيل دفعة على تسجيل ملغى');
-      }
-      final finalFee = enr.first['final_fee'] as int;
-      final paidSoFar = await _activePaid(txn, enrollmentId);
-      if (!allowOverpayment && amount > finalFee - paidSoFar) {
-        throw const AppException('المبلغ أكبر من المتبقي على الطالب');
-      }
+    return _db.transaction((txn) => recordPaymentIn(
+          txn,
+          enrollmentId: enrollmentId,
+          amount: amount,
+          paidAt: paidAt,
+          method: method,
+          receiptNo: receiptNo,
+          receiverName: receiverName,
+          notes: notes,
+          manualAllocations: manualAllocations,
+          allowOverpayment: allowOverpayment,
+          createdBy: createdBy,
+        ));
+  }
 
-      // 2) خطة التخصيص على الأقساط.
-      final rows = await txn.query(
+  /// نفس [recordPayment] لكن داخل معاملة قائمة (مثلًا عند تسجيل طالب مع دفعة أولى).
+  Future<PaymentResult> recordPaymentIn(
+    Transaction txn, {
+    required int enrollmentId,
+    required int amount,
+    required String paidAt,
+    required PaymentMethod method,
+    String? receiptNo,
+    String? receiverName,
+    String? notes,
+    Map<int, int>? manualAllocations,
+    bool allowOverpayment = false,
+    int? createdBy,
+  }) async {
+    if (amount <= 0) {
+      throw const AppException('المبلغ يجب أن يكون أكبر من صفر');
+    }
+    // 1) التحقق من التسجيل والرصيد.
+    final enr = await txn.query(
+      'enrollments',
+      columns: ['final_fee', 'status'],
+      where: 'id = ?',
+      whereArgs: [enrollmentId],
+      limit: 1,
+    );
+    if (enr.isEmpty) throw const AppException('التسجيل غير موجود');
+    if (enr.first['status'] == 'cancelled') {
+      throw const AppException('لا يمكن تسجيل دفعة على تسجيل ملغى');
+    }
+    final finalFee = enr.first['final_fee'] as int;
+    final paidSoFar = await _activePaid(txn, enrollmentId);
+    if (!allowOverpayment && amount > finalFee - paidSoFar) {
+      throw const AppException('المبلغ أكبر من المتبقي على الطالب');
+    }
+
+    // 2) خطة التخصيص على الأقساط.
+    final rows = await txn.query(
+      'installments',
+      where: 'enrollment_id = ? AND paid_amount < amount',
+      whereArgs: [enrollmentId],
+      orderBy: 'due_date, seq',
+    );
+    final byId = {for (final r in rows) r['id'] as int: r};
+    final dues = rows
+        .map((r) => InstallmentDue(
+              id: r['id'] as int,
+              remaining: (r['amount'] as int) - (r['paid_amount'] as int),
+              dueDate: r['due_date'] as String,
+            ))
+        .toList();
+    final shares = manualAllocations == null
+        ? InstallmentCalculator.autoAllocate(amount, dues)
+        : _validateManual(amount, dues, manualAllocations);
+    final allocated = shares.fold<int>(0, (s, a) => s + a.amount);
+    final onAccount = amount - allocated;
+    if (onAccount < 0) {
+      throw const AppException('مجموع التخصيص يتجاوز قيمة الدفعة');
+    }
+
+    // 3) رقم السند الفريد.
+    final resolvedReceipt = await _resolveReceiptNo(txn, receiptNo);
+
+    // 4) الدفعة.
+    final paymentId = await txn.insert('payments', {
+      'uuid': _uuid(),
+      'enrollment_id': enrollmentId,
+      'amount': amount,
+      'paid_at': paidAt,
+      'method': method.code,
+      'receipt_no': resolvedReceipt,
+      'receiver_name': receiverName,
+      'notes': notes,
+      'created_by': createdBy,
+    });
+
+    // 5) التخصيصات وتحديث الأقساط.
+    final now = _nowIso;
+    for (final s in shares) {
+      await txn.insert('payment_allocations', {
+        'payment_id': paymentId,
+        'installment_id': s.installmentId,
+        'amount': s.amount,
+      });
+      final row = byId[s.installmentId]!;
+      final newPaid = (row['paid_amount'] as int) + s.amount;
+      await txn.update(
         'installments',
-        where: 'enrollment_id = ? AND paid_amount < amount',
-        whereArgs: [enrollmentId],
-        orderBy: 'due_date, seq',
+        {
+          'paid_amount': newPaid,
+          'status': InstallmentCalculator.statusFor(
+            amount: row['amount'] as int,
+            paid: newPaid,
+            dueDate: row['due_date'] as String,
+            today: _today,
+          ).code,
+          'updated_at': now,
+        },
+        where: 'id = ?',
+        whereArgs: [s.installmentId],
       );
-      final byId = {for (final r in rows) r['id'] as int: r};
-      final dues = rows
-          .map((r) => InstallmentDue(
-                id: r['id'] as int,
-                remaining: (r['amount'] as int) - (r['paid_amount'] as int),
-                dueDate: r['due_date'] as String,
-              ))
-          .toList();
-      final shares = manualAllocations == null
-          ? InstallmentCalculator.autoAllocate(amount, dues)
-          : _validateManual(amount, dues, manualAllocations);
-      final allocated = shares.fold<int>(0, (s, a) => s + a.amount);
-      final onAccount = amount - allocated;
-      if (onAccount < 0) {
-        throw const AppException('مجموع التخصيص يتجاوز قيمة الدفعة');
-      }
+    }
+    if (onAccount > 0) {
+      await txn.insert('payment_allocations', {
+        'payment_id': paymentId,
+        'installment_id': null,
+        'amount': onAccount,
+      });
+    }
 
-      // 3) رقم السند الفريد.
-      final resolvedReceipt = await _resolveReceiptNo(txn, receiptNo);
+    // 6) السند.
+    await txn.insert('receipts', {
+      'payment_id': paymentId,
+      'receipt_no': resolvedReceipt,
+      'status': 'active',
+    });
 
-      // 4) الدفعة.
-      final paymentId = await txn.insert('payments', {
-        'uuid': _uuid(),
+    // 7) التدقيق.
+    await writeAudit(
+      txn,
+      entity: 'payment',
+      entityId: paymentId,
+      action: 'create',
+      details: {
         'enrollment_id': enrollmentId,
         'amount': amount,
-        'paid_at': paidAt,
-        'method': method.code,
         'receipt_no': resolvedReceipt,
-        'receiver_name': receiverName,
-        'notes': notes,
-        'created_by': createdBy,
-      });
+        'on_account': onAccount,
+      },
+      actorId: createdBy,
+    );
 
-      // 5) التخصيصات وتحديث الأقساط.
-      final now = _nowIso;
-      for (final s in shares) {
-        await txn.insert('payment_allocations', {
-          'payment_id': paymentId,
-          'installment_id': s.installmentId,
-          'amount': s.amount,
-        });
-        final row = byId[s.installmentId]!;
-        final newPaid = (row['paid_amount'] as int) + s.amount;
-        await txn.update(
-          'installments',
-          {
-            'paid_amount': newPaid,
-            'status': InstallmentCalculator.statusFor(
-              amount: row['amount'] as int,
-              paid: newPaid,
-              dueDate: row['due_date'] as String,
-              today: _today,
-            ).code,
-            'updated_at': now,
-          },
-          where: 'id = ?',
-          whereArgs: [s.installmentId],
-        );
-      }
-      if (onAccount > 0) {
-        await txn.insert('payment_allocations', {
-          'payment_id': paymentId,
-          'installment_id': null,
-          'amount': onAccount,
-        });
-      }
-
-      // 6) السند.
-      await txn.insert('receipts', {
-        'payment_id': paymentId,
-        'receipt_no': resolvedReceipt,
-        'status': 'active',
-      });
-
-      // 7) التدقيق.
-      await writeAudit(
-        txn,
-        entity: 'payment',
-        entityId: paymentId,
-        action: 'create',
-        details: {
-          'enrollment_id': enrollmentId,
-          'amount': amount,
-          'receipt_no': resolvedReceipt,
-          'on_account': onAccount,
-        },
-        actorId: createdBy,
-      );
-
-      return PaymentResult(
-        paymentId: paymentId,
-        receiptNo: resolvedReceipt,
-        allocations: shares,
-        onAccountAmount: onAccount,
-      );
-    });
+    return PaymentResult(
+      paymentId: paymentId,
+      receiptNo: resolvedReceipt,
+      allocations: shares,
+      onAccountAmount: onAccount,
+    );
   }
 
   /// عكس دفعة (لا حذف): يُسترجع التخصيص وتُلغى الدفعة والسند مع حفظ السبب.

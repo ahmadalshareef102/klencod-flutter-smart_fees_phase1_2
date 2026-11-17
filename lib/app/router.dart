@@ -1,9 +1,18 @@
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../features/settings/presentation/more_page.dart';
+import '../features/attendance/presentation/attendance_page.dart';
+import '../features/batches/presentation/batch_form_page.dart';
+import '../features/expenses/presentation/expense_form_page.dart';
+import '../features/expenses/presentation/expenses_page.dart';
+import '../features/institute/presentation/institute_page.dart';
+import '../features/reports/presentation/reports_page.dart';
+import '../features/batches/presentation/batches_page.dart';
+import '../features/dashboard/presentation/dashboard_page.dart';
+import '../features/settings/presentation/settings_page.dart';
 import '../features/shell/presentation/home_shell.dart';
-import '../shared/widgets/section_placeholder_page.dart';
+import '../features/students/presentation/student_detail_page.dart';
+import '../features/students/presentation/student_form_page.dart';
+import '../features/students/presentation/students_page.dart';
 
 GoRouter buildRouter() {
   return GoRouter(
@@ -13,37 +22,39 @@ GoRouter buildRouter() {
         builder: (context, state, shell) => HomeShell(shell: shell),
         branches: [
           StatefulShellBranch(routes: [
-            GoRoute(
-              path: '/home',
-              builder: (c, s) => const SectionPlaceholderPage(
-                  title: 'الرئيسية', icon: Icons.dashboard_outlined, phase: 3),
-            ),
+            GoRoute(path: '/home', builder: (c, s) => const DashboardPage()),
           ]),
           StatefulShellBranch(routes: [
-            GoRoute(
-              path: '/students',
-              builder: (c, s) => const SectionPlaceholderPage(
-                  title: 'الطلاب', icon: Icons.groups_outlined, phase: 3),
-            ),
+            GoRoute(path: '/batches', builder: (c, s) => const BatchesPage()),
           ]),
           StatefulShellBranch(routes: [
-            GoRoute(
-              path: '/collection',
-              builder: (c, s) => const SectionPlaceholderPage(
-                  title: 'التحصيل', icon: Icons.payments_outlined, phase: 4),
-            ),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(
-              path: '/attendance',
-              builder: (c, s) => const SectionPlaceholderPage(
-                  title: 'الحضور', icon: Icons.fact_check_outlined, phase: 5),
-            ),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(path: '/more', builder: (c, s) => const MorePage()),
+            GoRoute(path: '/settings', builder: (c, s) => const SettingsPage()),
           ]),
         ],
+      ),
+      // الشاشات الداخلية بملء الشاشة (بدون شريط التنقل السفلي).
+      GoRoute(path: '/batches/new', builder: (c, s) => const BatchFormPage()),
+      GoRoute(path: '/expenses', builder: (c, s) => const ExpensesPage()),
+      GoRoute(path: '/expenses/new', builder: (c, s) => const ExpenseFormPage()),
+      GoRoute(path: '/attendance', builder: (c, s) => const AttendancePage()),
+      GoRoute(path: '/reports', builder: (c, s) => const ReportsPage()),
+      GoRoute(path: '/institute', builder: (c, s) => const InstitutePage()),
+      GoRoute(
+        path: '/students',
+        builder: (c, s) => StudentsPage(
+            initialBatchId: int.tryParse(s.uri.queryParameters['batch'] ?? '')),
+      ),
+      // مسار /students/new يجب أن يسبق /students/:id.
+      GoRoute(path: '/students/new', builder: (c, s) => const StudentFormPage()),
+      GoRoute(
+        path: '/students/:id',
+        builder: (c, s) =>
+            StudentDetailPage(studentId: int.parse(s.pathParameters['id']!)),
+      ),
+      GoRoute(
+        path: '/students/:id/edit',
+        builder: (c, s) =>
+            StudentFormPage(studentId: int.parse(s.pathParameters['id']!)),
       ),
     ],
   );

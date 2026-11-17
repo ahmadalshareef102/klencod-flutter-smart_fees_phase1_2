@@ -48,6 +48,8 @@ CREATE TABLE students (
   gender TEXT CHECK (gender IN ('male','female') OR gender IS NULL),
   phone TEXT,
   guardian_phone TEXT,
+  guardian_name TEXT,
+  mother_name TEXT,
   address TEXT,
   birth_date TEXT,
   registered_at TEXT NOT NULL DEFAULT (date('now')),
@@ -86,8 +88,16 @@ CREATE TABLE courses (
   '''
 CREATE TABLE batches (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  course_id INTEGER NOT NULL REFERENCES courses(id),
+  course_id INTEGER REFERENCES courses(id),
   name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+  batch_type TEXT NOT NULL DEFAULT 'monthly_recurring' CHECK (batch_type IN
+    ('monthly_recurring','monthly_total','fixed_course','yearly','quarterly',
+     'custom','installments')),
+  fee_amount INTEGER NOT NULL DEFAULT 0 CHECK (fee_amount >= 0),
+  subject TEXT,
+  days_count INTEGER NOT NULL DEFAULT 0 CHECK (days_count >= 0),
+  installments_count INTEGER NOT NULL DEFAULT 1 CHECK (installments_count >= 1),
+  interval_days INTEGER NOT NULL DEFAULT 30 CHECK (interval_days >= 1),
   level TEXT,
   trainer TEXT,
   start_date TEXT,
@@ -110,7 +120,7 @@ CREATE TABLE batches (
 CREATE TABLE enrollments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   student_id INTEGER NOT NULL REFERENCES students(id),
-  course_id INTEGER NOT NULL REFERENCES courses(id),
+  course_id INTEGER REFERENCES courses(id),
   batch_id INTEGER REFERENCES batches(id),
   enrolled_at TEXT NOT NULL DEFAULT (date('now')),
   original_fee INTEGER NOT NULL CHECK (original_fee >= 0),
@@ -148,6 +158,7 @@ CREATE TABLE fee_plans (
   first_due_date TEXT NOT NULL,
   interval_days INTEGER NOT NULL CHECK (interval_days > 0),
   total_amount INTEGER NOT NULL CHECK (total_amount >= 0),
+  monthly_fee INTEGER CHECK (monthly_fee IS NULL OR monthly_fee > 0),
   created_at $_ts
 )''',
   '''
